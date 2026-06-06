@@ -16,11 +16,20 @@ async def send_daily_review(bot: Bot, user_id: int) -> None:
         await bot.send_message(user_id, "All clear. Nothing pending.")
         return
     for memo in memos:
-        header = f"[{memo.id}]"
-        if memo.source:
-            header += f" (from {memo.source})"
-        text = f"{header}\n{memo.text}"
-        await bot.send_message(user_id, text, reply_markup=memo_keyboard(memo.id))
+        if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
+            caption = f"(from {memo.source})" if memo.source else None
+            await bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=memo.chat_id,
+                message_id=memo.message_id,
+                caption=caption,
+                reply_markup=memo_keyboard(memo.id),
+            )
+        else:
+            header = f"[{memo.id}]"
+            if memo.source:
+                header += f" (from {memo.source})"
+            await bot.send_message(user_id, f"{header}\n{memo.text}", reply_markup=memo_keyboard(memo.id))
 
 
 async def setup_scheduler(bot: Bot, user_id: int) -> AsyncIOScheduler:
