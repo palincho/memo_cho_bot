@@ -23,10 +23,9 @@ async def main() -> None:
     register_handlers(dp)
 
     scheduler = await setup_scheduler(bot, user_id)
-    bot["scheduler"] = scheduler
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, scheduler=scheduler)
     finally:
         scheduler.shutdown()
         await bot.session.close()
