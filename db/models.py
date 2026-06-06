@@ -15,13 +15,14 @@ class Memo:
     status: str
     snoozed_until: Optional[date]
     source: Optional[str]
+    message_id: Optional[int]
 
 
-async def save_memo(text: str, source: Optional[str] = None) -> Memo:
+async def save_memo(text: str, source: Optional[str] = None, message_id: Optional[int] = None) -> Memo:
     async with get_db() as db:
         cursor = await db.execute(
-            "INSERT INTO memos (text, source) VALUES (?, ?)",
-            (text, source),
+            "INSERT INTO memos (text, source, message_id) VALUES (?, ?, ?)",
+            (text, source, message_id),
         )
         await db.commit()
         row = await (await db.execute(
@@ -91,4 +92,5 @@ def _row_to_memo(row: aiosqlite.Row) -> Memo:
         status=row["status"],
         snoozed_until=date.fromisoformat(row["snoozed_until"]) if row["snoozed_until"] else None,
         source=row["source"],
+        message_id=row["message_id"],
     )
