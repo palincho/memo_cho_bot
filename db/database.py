@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS memos (
     created_at DATETIME DEFAULT (datetime('now')),
     status TEXT NOT NULL DEFAULT 'active',
     snoozed_until DATE,
-    source TEXT
+    source TEXT,
+    message_id INTEGER,
+    chat_id INTEGER
 )
 """
 
@@ -29,6 +31,11 @@ async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(CREATE_MEMOS)
         await db.execute(CREATE_SETTINGS)
+        for col, col_type in [("message_id", "INTEGER"), ("chat_id", "INTEGER")]:
+            try:
+                await db.execute(f"ALTER TABLE memos ADD COLUMN {col} {col_type}")
+            except aiosqlite.OperationalError:
+                pass  # column already exists (existing DB)
         await db.commit()
 
 

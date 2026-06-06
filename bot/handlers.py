@@ -49,11 +49,20 @@ async def review_handler(message: Message) -> None:
         await message.answer("Nothing pending. Inbox clear.")
         return
     for memo in memos:
-        header = f"[{memo.id}]"
-        if memo.source:
-            header += f" (from {memo.source})"
-        text = f"{header}\n{memo.text}"
-        await message.answer(text, reply_markup=memo_keyboard(memo.id))
+        if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
+            caption = f"(from {memo.source})" if memo.source else None
+            await message.bot.copy_message(
+                chat_id=message.chat.id,
+                from_chat_id=memo.chat_id,
+                message_id=memo.message_id,
+                caption=caption,
+                reply_markup=memo_keyboard(memo.id),
+            )
+        else:
+            header = f"[{memo.id}]"
+            if memo.source:
+                header += f" (from {memo.source})"
+            await message.answer(f"{header}\n{memo.text}", reply_markup=memo_keyboard(memo.id))
 
 
 @router.message(Command("time"))
@@ -81,7 +90,7 @@ async def voice_handler(message: Message) -> None:
     if not _is_allowed(message.from_user.id):
         return
     file_id = message.voice.file_id
-    await save_memo(f"voice:{file_id}")
+    await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
     await message.answer("Voice stored. I'll process it later.")
 
 
@@ -102,7 +111,7 @@ async def message_handler(message: Message) -> None:
             source = origin.sender_user_name
         elif hasattr(origin, "chat") and origin.chat:
             source = origin.chat.title
-    await save_memo(text, source=source)
+    await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
     await message.answer("Got it.")
 
 
