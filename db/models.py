@@ -1,0 +1,94 @@
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Optional
+
+import aiosqlite
+
+from db.database import get_db
+
+
+@dataclass
+class Memo:
+    id: int
+    text: str
+    created_at: datetime
+    status: str
+    snoozed_until: Optional[date]
+    source: Optional[str]
+
+
+async def save_memo(text: str, source: Optional[str] = None) -> Memo:
+    async with get_db() as db:
+        cursor = await db.execute(
+            "INSERT INTO memos (text, source) VALUES (?, ?)",
+            (text, source),
+        )
+        await db.commit()
+        row = await (await db.execute(
+            "SELECT * FROM memos WHERE id = ?", (cursor.lastrowid,)
+        )).fetchone()
+    return _row_to_memo(row)
+
+
+async def get_active_memos() -> list[Memo]:
+    today = date.today().isoformat()
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT * FROM memos
+            WHERE status = 'active'
+              AND (snoozed_until IS NULL OR snoozed_until <= ?)
+            ORDER BY created_at ASC
+            """,
+            (today,),
+        )
+        rows = await cursor.fetchall()
+    return [_row_to_memo(r) for r in rows]
+
+
+async def set_status(memo_id: int, status: str) -> None:
+    async with get_db() as db:
+        await db.execute(
+            "UPDATE memos SET status = ? WHERE id = ?",
+            (status, memo_id),
+        )
+        await db.commit()
+
+
+async def snooze_memo(memo_id: int, until: date) -> None:
+    async with get_db() as db:
+        await db.execute(
+            "UPDATE memos SET snoozed_until = ? WHERE id = ?",
+            (until.isoformat(), memo_id),
+        )
+        await db.commit()
+
+
+async def get_setting(key: str) -> Optional[str]:
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        )
+        row = await cursor.fetchone()
+    return row["value"] if row else None
+
+
+async def set_setting(key: str, value: str) -> None:
+    async with get_db() as db:
+        await db.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        await db.commit()
+
+
+def _row_to_memo(row: aiosqlite.Row) -> Memo:
+    return Memo(
+        id=row["id"],
+        text=row["text"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        status=row["status"],
+        snoozed_until=date.fromisoformat(row["snoozed_until"]) if row["snoozed_until"] else None,
+        source=row["source"],
+    )

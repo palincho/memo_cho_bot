@@ -1,0 +1,15 @@
+[Unit]
+Description=Drift Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/memo_cho_bot
+ExecStart=/opt/memo_cho_bot/.venv/bin/python3 main.py
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/memo_cho_bot/.env
+
+[Install]
+WantedBy=multi-user.target
