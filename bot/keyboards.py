@@ -11,3 +11,11 @@ def memo_keyboard(memo_id: int) -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+
+def undo_keyboard(memo_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Undo", callback_data=f"undo:{memo_id}")]
+        ]
+    )

@@ -26,11 +26,20 @@ CREATE TABLE IF NOT EXISTS settings (
 )
 """
 
+CREATE_TRUSTED_USERS = """
+CREATE TABLE IF NOT EXISTS trusted_users (
+    user_id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    added_at DATETIME DEFAULT (datetime('now'))
+)
+"""
+
 
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(CREATE_MEMOS)
         await db.execute(CREATE_SETTINGS)
+        await db.execute(CREATE_TRUSTED_USERS)
         for col, col_type in [("message_id", "INTEGER"), ("chat_id", "INTEGER")]:
             try:
                 await db.execute(f"ALTER TABLE memos ADD COLUMN {col} {col_type}")
