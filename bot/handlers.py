@@ -48,6 +48,8 @@ async def review_handler(message: Message) -> None:
     if not memos:
         await message.answer("Nothing pending. Inbox clear.")
         return
+    count = len(memos)
+    await message.answer(f"{count} memo{'s' if count != 1 else ''}:")
     for memo in memos:
         if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
             caption = f"(from {memo.source})" if memo.source else None
@@ -140,7 +142,7 @@ async def callback_snooze(callback: CallbackQuery) -> None:
     memo_id = int(callback.data.split(":")[1])
     tomorrow = date.today() + timedelta(days=1)
     await snooze_memo(memo_id, tomorrow)
-    await _edit_message(callback, "Snoozed.")
+    await _edit_message(callback, f"Snoozed until tomorrow ({tomorrow.strftime('%-d %b')}).")
     await callback.answer()
 
 
