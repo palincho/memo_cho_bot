@@ -21,10 +21,10 @@ A personal Telegram bot for memory capture. Single-user, zero friction.
 
 ## Usage
 
-- Send any message → captured to inbox
+- Send any message → captured to inbox with Done / Snooze / Let go buttons
 - Forward a message → captured with original sender as source
-- Send a voice message → file reference stored
-- `/review` — show all active memos with action buttons
+- Send a voice message → stored and immediately actionable
+- `/review` — show count and all active memos with action buttons
 - `/time HH:MM` — set daily reminder time
 - `/help` — show all commands
 
