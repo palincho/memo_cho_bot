@@ -115,13 +115,21 @@ async def message_handler(message: Message) -> None:
     await message.answer("Got it.")
 
 
+async def _edit_message(callback: CallbackQuery, text: str) -> None:
+    # voice/media messages have no .text — must use edit_caption instead
+    if callback.message.text is None:
+        await callback.message.edit_caption(caption=text)
+    else:
+        await callback.message.edit_text(text)
+
+
 @router.callback_query(F.data.startswith("done:"))
 async def callback_done(callback: CallbackQuery) -> None:
     if not _is_allowed(callback.from_user.id):
         return
     memo_id = int(callback.data.split(":")[1])
     await set_status(memo_id, "done")
-    await callback.message.edit_text("Done.")
+    await _edit_message(callback, "Done.")
     await callback.answer()
 
 
@@ -132,7 +140,7 @@ async def callback_snooze(callback: CallbackQuery) -> None:
     memo_id = int(callback.data.split(":")[1])
     tomorrow = date.today() + timedelta(days=1)
     await snooze_memo(memo_id, tomorrow)
-    await callback.message.edit_text("Snoozed.")
+    await _edit_message(callback, "Snoozed.")
     await callback.answer()
 
 
@@ -142,7 +150,7 @@ async def callback_letgo(callback: CallbackQuery) -> None:
         return
     memo_id = int(callback.data.split(":")[1])
     await set_status(memo_id, "dropped")
-    await callback.message.edit_text("Gone.")
+    await _edit_message(callback, "Gone.")
     await callback.answer()
 
 
