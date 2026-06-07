@@ -64,7 +64,7 @@ async def review_handler(message: Message) -> None:
     await message.answer(f"{count} memo{'s' if count != 1 else ''}:")
     for memo in memos:
         if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
-            caption = f"(from {memo.source})" if memo.source else None
+            caption = f"(from {memo.sender_name})" if memo.sender_name else None
             await message.bot.copy_message(
                 chat_id=message.chat.id,
                 from_chat_id=memo.chat_id,
@@ -74,8 +74,8 @@ async def review_handler(message: Message) -> None:
             )
         else:
             header = f"[{memo.id}]"
-            if memo.source:
-                header += f" (from {memo.source})"
+            if memo.sender_name:
+                header += f" (from {memo.sender_name})"
             await message.answer(f"{header}\n{memo.text}", reply_markup=memo_keyboard(memo.id))
 
 
@@ -155,14 +155,13 @@ async def setsecret_handler(message: Message) -> None:
 async def voice_handler(message: Message) -> None:
     if await is_trusted_user(message.from_user.id):
         file_id = message.voice.file_id
-        source = message.from_user.first_name
-        saved = await save_memo(f"voice:{file_id}", source=source, message_id=message.message_id, chat_id=message.chat.id)
+        saved = await save_memo(f"voice:{file_id}", sender_name=message.from_user.first_name, message_id=message.message_id, chat_id=message.chat.id, sender_id=message.from_user.id)
         await message.answer("Task sent.", reply_markup=undo_keyboard(saved.id))
         return
     if not _is_allowed(message.from_user.id):
         return
     file_id = message.voice.file_id
-    saved = await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
+    saved = await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id, sender_id=message.from_user.id)
     await message.answer("Voice stored. I'll process it later.", reply_markup=memo_keyboard(saved.id))
 
 
@@ -178,19 +177,19 @@ async def message_handler(message: Message) -> None:
     text = message.text or message.caption or ""
     if not text:
         return
-    source: str | None = None
+    sender_name: str | None = None
     if is_trusted:
-        source = message.from_user.first_name
+        sender_name = message.from_user.first_name
     elif message.forward_origin:
         origin = message.forward_origin
         if hasattr(origin, "sender_user") and origin.sender_user:
             u = origin.sender_user
-            source = f"{u.first_name} {u.last_name or ''}".strip()
+            sender_name = f"{u.first_name} {u.last_name or ''}".strip()
         elif hasattr(origin, "sender_user_name") and origin.sender_user_name:
-            source = origin.sender_user_name
+            sender_name = origin.sender_user_name
         elif hasattr(origin, "chat") and origin.chat:
-            source = origin.chat.title
-    saved = await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
+            sender_name = origin.chat.title
+    saved = await save_memo(text, sender_name=sender_name, message_id=message.message_id, chat_id=message.chat.id, sender_id=message.from_user.id)
     if is_trusted:
         await message.answer("Task sent.", reply_markup=undo_keyboard(saved.id))
     else:

@@ -17,7 +17,7 @@ async def send_daily_review(bot: Bot, user_id: int) -> None:
         return
     for memo in memos:
         if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
-            caption = f"(from {memo.source})" if memo.source else None
+            caption = f"(from {memo.sender_name})" if memo.sender_name else None
             await bot.copy_message(
                 chat_id=user_id,
                 from_chat_id=memo.chat_id,
@@ -27,8 +27,8 @@ async def send_daily_review(bot: Bot, user_id: int) -> None:
             )
         else:
             header = f"[{memo.id}]"
-            if memo.source:
-                header += f" (from {memo.source})"
+            if memo.sender_name:
+                header += f" (from {memo.sender_name})"
             await bot.send_message(user_id, f"{header}\n{memo.text}", reply_markup=memo_keyboard(memo.id))
 
 

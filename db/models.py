@@ -14,23 +14,23 @@ class Memo:
     created_at: datetime
     status: str
     snoozed_until: Optional[date]
-    source: Optional[str]
+    sender_name: Optional[str]
     message_id: Optional[int]
     chat_id: Optional[int]
-    user_id: Optional[int] = None
+    sender_id: Optional[int] = None
 
 
 async def save_memo(
     text: str,
-    source: Optional[str] = None,
+    sender_name: Optional[str] = None,
     message_id: Optional[int] = None,
     chat_id: Optional[int] = None,
-    user_id: Optional[int] = None,
+    sender_id: Optional[int] = None,
 ) -> Memo:
     async with get_db() as db:
         cursor = await db.execute(
-            "INSERT INTO memos (text, source, message_id, chat_id, user_id) VALUES (?, ?, ?, ?, ?)",
-            (text, source, message_id, chat_id, user_id),
+            "INSERT INTO memos (text, sender_name, message_id, chat_id, sender_id) VALUES (?, ?, ?, ?, ?)",
+            (text, sender_name, message_id, chat_id, sender_id),
         )
         await db.commit()
         row = await (await db.execute(
@@ -39,18 +39,18 @@ async def save_memo(
     return _row_to_memo(row)
 
 
-async def get_active_memos_for_user(user_id: int) -> list[Memo]:
+async def get_active_memos_for_user(sender_id: int) -> list[Memo]:
     today = date.today().isoformat()
     async with get_db() as db:
         cursor = await db.execute(
             """
             SELECT * FROM memos
             WHERE status = 'active'
-              AND user_id = ?
+              AND sender_id = ?
               AND (snoozed_until IS NULL OR snoozed_until <= ?)
             ORDER BY created_at ASC
             """,
-            (user_id, today),
+            (sender_id, today),
         )
         rows = await cursor.fetchall()
     return [_row_to_memo(r) for r in rows]
@@ -58,9 +58,9 @@ async def get_active_memos_for_user(user_id: int) -> list[Memo]:
 
 async def get_memo_owner(memo_id: int) -> Optional[int]:
     async with get_db() as db:
-        cursor = await db.execute("SELECT user_id FROM memos WHERE id = ?", (memo_id,))
+        cursor = await db.execute("SELECT sender_id FROM memos WHERE id = ?", (memo_id,))
         row = await cursor.fetchone()
-    return row["user_id"] if row else None
+    return row["sender_id"] if row else None
 
 
 async def get_active_memos() -> list[Memo]:
@@ -156,7 +156,8 @@ def _row_to_memo(row: aiosqlite.Row) -> Memo:
         created_at=datetime.fromisoformat(row["created_at"]),
         status=row["status"],
         snoozed_until=date.fromisoformat(row["snoozed_until"]) if row["snoozed_until"] else None,
-        source=row["source"],
+        sender_name=row["sender_name"],
         message_id=row["message_id"],
         chat_id=row["chat_id"],
+        sender_id=row["sender_id"],
     )
