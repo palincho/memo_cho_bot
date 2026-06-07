@@ -40,7 +40,7 @@ async def init_db() -> None:
         await db.execute(CREATE_MEMOS)
         await db.execute(CREATE_SETTINGS)
         await db.execute(CREATE_TRUSTED_USERS)
-        for col, col_type in [("message_id", "INTEGER"), ("chat_id", "INTEGER")]:
+        for col, col_type in [("message_id", "INTEGER"), ("chat_id", "INTEGER"), ("user_id", "INTEGER")]:
             try:
                 await db.execute(f"ALTER TABLE memos ADD COLUMN {col} {col_type}")
             except aiosqlite.OperationalError:

@@ -17,6 +17,7 @@ class Memo:
     source: Optional[str]
     message_id: Optional[int]
     chat_id: Optional[int]
+    user_id: Optional[int] = None
 
 
 async def save_memo(
@@ -24,17 +25,42 @@ async def save_memo(
     source: Optional[str] = None,
     message_id: Optional[int] = None,
     chat_id: Optional[int] = None,
+    user_id: Optional[int] = None,
 ) -> Memo:
     async with get_db() as db:
         cursor = await db.execute(
-            "INSERT INTO memos (text, source, message_id, chat_id) VALUES (?, ?, ?, ?)",
-            (text, source, message_id, chat_id),
+            "INSERT INTO memos (text, source, message_id, chat_id, user_id) VALUES (?, ?, ?, ?, ?)",
+            (text, source, message_id, chat_id, user_id),
         )
         await db.commit()
         row = await (await db.execute(
             "SELECT * FROM memos WHERE id = ?", (cursor.lastrowid,)
         )).fetchone()
     return _row_to_memo(row)
+
+
+async def get_active_memos_for_user(user_id: int) -> list[Memo]:
+    today = date.today().isoformat()
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT * FROM memos
+            WHERE status = 'active'
+              AND user_id = ?
+              AND (snoozed_until IS NULL OR snoozed_until <= ?)
+            ORDER BY created_at ASC
+            """,
+            (user_id, today),
+        )
+        rows = await cursor.fetchall()
+    return [_row_to_memo(r) for r in rows]
+
+
+async def get_memo_owner(memo_id: int) -> Optional[int]:
+    async with get_db() as db:
+        cursor = await db.execute("SELECT user_id FROM memos WHERE id = ?", (memo_id,))
+        row = await cursor.fetchone()
+    return row["user_id"] if row else None
 
 
 async def get_active_memos() -> list[Memo]:
