@@ -1,0 +1,32 @@
+name: Deploy to GCE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.GCE_HOST }}
+          username: ${{ secrets.GCE_USER }}
+          key: ${{ secrets.GCE_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/memo_cho_bot
+
+            echo "==> Pulling latest code"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Installing dependencies"
+            .venv/bin/pip install --quiet --upgrade pip
+            .venv/bin/pip install --quiet -r requirements.txt
+
+            echo "==> Restarting service"
+            sudo systemctl restart drift
+            sudo systemctl is-active --quiet drift && echo "Service is running."
