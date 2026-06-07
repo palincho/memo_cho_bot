@@ -90,8 +90,8 @@ async def voice_handler(message: Message) -> None:
     if not _is_allowed(message.from_user.id):
         return
     file_id = message.voice.file_id
-    await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
-    await message.answer("Voice stored. I'll process it later.")
+    saved = await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
+    await message.answer("Voice stored. I'll process it later.", reply_markup=memo_keyboard(saved.id))
 
 
 @router.message(F.text | F.caption | F.forward_origin)
@@ -111,8 +111,8 @@ async def message_handler(message: Message) -> None:
             source = origin.sender_user_name
         elif hasattr(origin, "chat") and origin.chat:
             source = origin.chat.title
-    await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
-    await message.answer("Got it.")
+    saved = await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
+    await message.answer("Got it.", reply_markup=memo_keyboard(saved.id))
 
 
 async def _edit_message(callback: CallbackQuery, text: str) -> None:
