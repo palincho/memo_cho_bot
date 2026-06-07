@@ -13,9 +13,10 @@ CREATE TABLE IF NOT EXISTS memos (
     created_at DATETIME DEFAULT (datetime('now')),
     status TEXT NOT NULL DEFAULT 'active',
     snoozed_until DATE,
-    source TEXT,
+    sender_name TEXT,
     message_id INTEGER,
-    chat_id INTEGER
+    chat_id INTEGER,
+    sender_id INTEGER
 )
 """
 
@@ -40,7 +41,12 @@ async def init_db() -> None:
         await db.execute(CREATE_MEMOS)
         await db.execute(CREATE_SETTINGS)
         await db.execute(CREATE_TRUSTED_USERS)
-        for col, col_type in [("message_id", "INTEGER"), ("chat_id", "INTEGER")]:
+        for old, new in [("source", "sender_name"), ("user_id", "sender_id")]:
+            try:
+                await db.execute(f"ALTER TABLE memos RENAME COLUMN {old} TO {new}")
+            except aiosqlite.OperationalError:
+                pass  # already renamed or doesn't exist
+        for col, col_type in [("message_id", "INTEGER"), ("chat_id", "INTEGER"), ("sender_name", "TEXT"), ("sender_id", "INTEGER")]:
             try:
                 await db.execute(f"ALTER TABLE memos ADD COLUMN {col} {col_type}")
             except aiosqlite.OperationalError:

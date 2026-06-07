@@ -10,6 +10,8 @@ from bot.keyboards import memo_keyboard, undo_keyboard
 from db.models import (
     add_trusted_user,
     get_active_memos,
+    get_active_memos_for_user,
+    get_memo_owner,
     get_setting,
     is_trusted_user,
     list_trusted_users,
@@ -34,7 +36,7 @@ def _is_allowed(user_id: int) -> bool:
 @router.message(Command("help"))
 async def help_handler(message: Message) -> None:
     if await is_trusted_user(message.from_user.id):
-        await message.answer("Send me any message and I'll add it to the task list.")
+        await message.answer("Send me any message and I'll add it to the task list.\n/review — show your tasks")
         return
     if not _is_allowed(message.from_user.id):
         return
@@ -54,17 +56,25 @@ async def help_handler(message: Message) -> None:
 
 @router.message(Command("review"))
 async def review_handler(message: Message) -> None:
-    if not _is_allowed(message.from_user.id):
+    user_id = message.from_user.id
+    is_owner = _is_allowed(user_id)
+    if is_owner:
+        memos = await get_active_memos()
+        empty_msg = "Nothing pending. Inbox clear."
+    elif await is_trusted_user(user_id):
+        memos = await get_active_memos_for_user(user_id)
+        empty_msg = "Nothing pending. Your tasks are clear."
+    else:
         return
-    memos = await get_active_memos()
+
     if not memos:
-        await message.answer("Nothing pending. Inbox clear.")
+        await message.answer(empty_msg)
         return
     count = len(memos)
-    await message.answer(f"{count} memo{'s' if count != 1 else ''}:")
+    await message.answer(f"{count} task{'s' if count != 1 else ''}:")
     for memo in memos:
         if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
-            caption = f"(from {memo.source})" if memo.source else None
+            caption = f"(from {memo.sender_name})" if memo.sender_name and is_owner else None
             await message.bot.copy_message(
                 chat_id=message.chat.id,
                 from_chat_id=memo.chat_id,
@@ -74,8 +84,8 @@ async def review_handler(message: Message) -> None:
             )
         else:
             header = f"[{memo.id}]"
-            if memo.source:
-                header += f" (from {memo.source})"
+            if memo.sender_name and is_owner:
+                header += f" (from {memo.sender_name})"
             await message.answer(f"{header}\n{memo.text}", reply_markup=memo_keyboard(memo.id))
 
 
@@ -155,14 +165,15 @@ async def setsecret_handler(message: Message) -> None:
 async def voice_handler(message: Message) -> None:
     if await is_trusted_user(message.from_user.id):
         file_id = message.voice.file_id
-        source = message.from_user.first_name
-        saved = await save_memo(f"voice:{file_id}", source=source, message_id=message.message_id, chat_id=message.chat.id)
+        name = message.from_user.first_name
+        saved = await save_memo(f"voice:{file_id}", sender_name=name, message_id=message.message_id, chat_id=message.chat.id, sender_id=message.from_user.id)
         await message.answer("Task sent.", reply_markup=undo_keyboard(saved.id))
+        await message.bot.send_message(ALLOWED_USER_ID, f"New voice task from {name}.")
         return
     if not _is_allowed(message.from_user.id):
         return
     file_id = message.voice.file_id
-    saved = await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
+    saved = await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id, sender_id=message.from_user.id)
     await message.answer("Voice stored. I'll process it later.", reply_markup=memo_keyboard(saved.id))
 
 
@@ -178,21 +189,23 @@ async def message_handler(message: Message) -> None:
     text = message.text or message.caption or ""
     if not text:
         return
-    source: str | None = None
+    sender_name: str | None = None
     if is_trusted:
-        source = message.from_user.first_name
+        sender_name = message.from_user.first_name
     elif message.forward_origin:
         origin = message.forward_origin
         if hasattr(origin, "sender_user") and origin.sender_user:
             u = origin.sender_user
-            source = f"{u.first_name} {u.last_name or ''}".strip()
+            sender_name = f"{u.first_name} {u.last_name or ''}".strip()
         elif hasattr(origin, "sender_user_name") and origin.sender_user_name:
-            source = origin.sender_user_name
+            sender_name = origin.sender_user_name
         elif hasattr(origin, "chat") and origin.chat:
-            source = origin.chat.title
-    saved = await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
+            sender_name = origin.chat.title
+    saved = await save_memo(text, sender_name=sender_name, message_id=message.message_id, chat_id=message.chat.id, sender_id=message.from_user.id)
     if is_trusted:
         await message.answer("Task sent.", reply_markup=undo_keyboard(saved.id))
+        preview = text[:200] + ("…" if len(text) > 200 else "")
+        await message.bot.send_message(ALLOWED_USER_ID, f"New task from {sender_name}:\n{preview}")
     else:
         await message.answer("Got it.", reply_markup=memo_keyboard(saved.id))
 
@@ -218,11 +231,23 @@ async def _edit_message(callback: CallbackQuery, text: str) -> None:
         await callback.message.edit_text(text)
 
 
+async def _check_memo_access(callback: CallbackQuery, memo_id: int) -> bool:
+    user_id = callback.from_user.id
+    if _is_allowed(user_id):
+        return True
+    if await is_trusted_user(user_id):
+        if await get_memo_owner(memo_id) == user_id:
+            return True
+        await callback.answer("Not your task.", show_alert=True)
+        return False
+    return False
+
+
 @router.callback_query(F.data.startswith("done:"))
 async def callback_done(callback: CallbackQuery) -> None:
-    if not _is_allowed(callback.from_user.id):
-        return
     memo_id = int(callback.data.split(":")[1])
+    if not await _check_memo_access(callback, memo_id):
+        return
     await set_status(memo_id, "done")
     await _edit_message(callback, "Done.")
     await callback.answer()
@@ -230,9 +255,9 @@ async def callback_done(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("snooze:"))
 async def callback_snooze(callback: CallbackQuery) -> None:
-    if not _is_allowed(callback.from_user.id):
-        return
     memo_id = int(callback.data.split(":")[1])
+    if not await _check_memo_access(callback, memo_id):
+        return
     tomorrow = date.today() + timedelta(days=1)
     await snooze_memo(memo_id, tomorrow)
     await _edit_message(callback, f"Snoozed until tomorrow ({tomorrow.strftime('%-d %b')}).")
@@ -241,9 +266,9 @@ async def callback_snooze(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("letgo:"))
 async def callback_letgo(callback: CallbackQuery) -> None:
-    if not _is_allowed(callback.from_user.id):
-        return
     memo_id = int(callback.data.split(":")[1])
+    if not await _check_memo_access(callback, memo_id):
+        return
     await set_status(memo_id, "dropped")
     await _edit_message(callback, "Gone.")
     await callback.answer()
