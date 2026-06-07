@@ -22,15 +22,20 @@ Telegram bot for personal memory capture. Single user, no auth needed.
 - Zero required fields at capture — plain message = captured.
 
 ## Data model
-Single table: `memos`
+Table: `memos`
 - id INTEGER PRIMARY KEY
 - text TEXT NOT NULL          -- verbatim, never modified
 - created_at DATETIME
 - status TEXT                 -- 'active' | 'done' | 'dropped'
 - snoozed_until DATE          -- nullable; hides item until this date
-- source TEXT                 -- nullable; for forwarded messages
+- source TEXT                 -- nullable; for forwarded messages or trusted sender name
 
 Active list = status='active' AND (snoozed_until IS NULL OR snoozed_until <= today)
+
+Table: `trusted_users`
+- user_id INTEGER PRIMARY KEY
+- name TEXT
+- added_at DATETIME
 
 ## Bot behaviour
 - Any plain message → capture → save → ack with "Got it."
@@ -38,6 +43,9 @@ Active list = status='active' AND (snoozed_until IS NULL OR snoozed_until <= tod
 - Voice message → save file_id as text ref, ack "Voice stored."
 - /review → show all active memos, each with 3 inline buttons
 - /time HH:MM → set daily reminder time (stored in settings table)
+- /adduser <id> [name] → add a trusted sender (stored in trusted_users table)
+- /removeuser <id> → revoke a trusted sender
+- /listusers → list all trusted senders
 - /help → show command list
 
 ## Inline keyboard per memo

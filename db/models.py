@@ -90,6 +90,39 @@ async def set_setting(key: str, value: str) -> None:
         await db.commit()
 
 
+async def add_trusted_user(user_id: int, name: str) -> None:
+    async with get_db() as db:
+        await db.execute(
+            "INSERT INTO trusted_users (user_id, name) VALUES (?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET name = excluded.name",
+            (user_id, name),
+        )
+        await db.commit()
+
+
+async def remove_trusted_user(user_id: int) -> None:
+    async with get_db() as db:
+        await db.execute("DELETE FROM trusted_users WHERE user_id = ?", (user_id,))
+        await db.commit()
+
+
+async def is_trusted_user(user_id: int) -> bool:
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT 1 FROM trusted_users WHERE user_id = ?", (user_id,)
+        )
+        return await cursor.fetchone() is not None
+
+
+async def list_trusted_users() -> list[tuple[int, str]]:
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT user_id, name FROM trusted_users ORDER BY added_at ASC"
+        )
+        rows = await cursor.fetchall()
+    return [(row["user_id"], row["name"]) for row in rows]
+
+
 def _row_to_memo(row: aiosqlite.Row) -> Memo:
     return Memo(
         id=row["id"],
