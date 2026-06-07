@@ -48,6 +48,8 @@ async def review_handler(message: Message) -> None:
     if not memos:
         await message.answer("Nothing pending. Inbox clear.")
         return
+    count = len(memos)
+    await message.answer(f"{count} memo{'s' if count != 1 else ''}:")
     for memo in memos:
         if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
             caption = f"(from {memo.source})" if memo.source else None
@@ -90,8 +92,8 @@ async def voice_handler(message: Message) -> None:
     if not _is_allowed(message.from_user.id):
         return
     file_id = message.voice.file_id
-    await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
-    await message.answer("Voice stored. I'll process it later.")
+    saved = await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
+    await message.answer("Voice stored. I'll process it later.", reply_markup=memo_keyboard(saved.id))
 
 
 @router.message(F.text | F.caption | F.forward_origin)
@@ -111,8 +113,16 @@ async def message_handler(message: Message) -> None:
             source = origin.sender_user_name
         elif hasattr(origin, "chat") and origin.chat:
             source = origin.chat.title
-    await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
-    await message.answer("Got it.")
+    saved = await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
+    await message.answer("Got it.", reply_markup=memo_keyboard(saved.id))
+
+
+async def _edit_message(callback: CallbackQuery, text: str) -> None:
+    # voice/media messages have no .text — must use edit_caption instead
+    if callback.message.text is None:
+        await callback.message.edit_caption(caption=text)
+    else:
+        await callback.message.edit_text(text)
 
 
 @router.callback_query(F.data.startswith("done:"))
@@ -121,7 +131,7 @@ async def callback_done(callback: CallbackQuery) -> None:
         return
     memo_id = int(callback.data.split(":")[1])
     await set_status(memo_id, "done")
-    await callback.message.edit_text("Done.")
+    await _edit_message(callback, "Done.")
     await callback.answer()
 
 
@@ -132,7 +142,7 @@ async def callback_snooze(callback: CallbackQuery) -> None:
     memo_id = int(callback.data.split(":")[1])
     tomorrow = date.today() + timedelta(days=1)
     await snooze_memo(memo_id, tomorrow)
-    await callback.message.edit_text("Snoozed.")
+    await _edit_message(callback, f"Snoozed until tomorrow ({tomorrow.strftime('%-d %b')}).")
     await callback.answer()
 
 
@@ -142,7 +152,7 @@ async def callback_letgo(callback: CallbackQuery) -> None:
         return
     memo_id = int(callback.data.split(":")[1])
     await set_status(memo_id, "dropped")
-    await callback.message.edit_text("Gone.")
+    await _edit_message(callback, "Gone.")
     await callback.answer()
 
 
