@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards import memo_keyboard
+from bot.keyboards import memo_keyboard, undo_keyboard
 from db.models import (
     add_trusted_user,
     get_active_memos,
@@ -19,6 +19,7 @@ from db.models import (
     set_status,
     snooze_memo,
 )
+
 from scheduler.jobs import reschedule
 
 ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", "0"))
@@ -41,7 +42,8 @@ async def help_handler(message: Message) -> None:
         "Commands:\n"
         "/review — show active memos\n"
         "/time HH:MM — set daily reminder time\n"
-        "/adduser <id> — allow someone to send tasks\n"
+        "/setsecret <word> — set passphrase to self-register\n"
+        "/adduser <id> [name] — manually allow someone\n"
         "/removeuser <id> — revoke access\n"
         "/listusers — show trusted senders\n"
         "/help — show this list\n\n"
@@ -136,16 +138,28 @@ async def listusers_handler(message: Message) -> None:
     await message.answer(f"Trusted senders:\n{lines}")
 
 
+@router.message(Command("setsecret"))
+async def setsecret_handler(message: Message) -> None:
+    if not _is_allowed(message.from_user.id):
+        return
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer("Usage: /setsecret <word>")
+        return
+    word = parts[1].strip()
+    await set_setting("secret_word", word)
+    await message.answer(f"Secret word set. Share it with anyone you want to allow.")
+
+
 @router.message(F.voice)
 async def voice_handler(message: Message) -> None:
     if await is_trusted_user(message.from_user.id):
         file_id = message.voice.file_id
         source = message.from_user.first_name
-        await save_memo(f"voice:{file_id}", source=source, message_id=message.message_id, chat_id=message.chat.id)
-        await message.answer("Task sent.")
+        saved = await save_memo(f"voice:{file_id}", source=source, message_id=message.message_id, chat_id=message.chat.id)
+        await message.answer("Task sent.", reply_markup=undo_keyboard(saved.id))
         return
     if not _is_allowed(message.from_user.id):
-        await _notify_unknown(message)
         return
     file_id = message.voice.file_id
     saved = await save_memo(f"voice:{file_id}", message_id=message.message_id, chat_id=message.chat.id)
@@ -156,9 +170,11 @@ async def voice_handler(message: Message) -> None:
 async def message_handler(message: Message) -> None:
     is_owner = _is_allowed(message.from_user.id)
     is_trusted = await is_trusted_user(message.from_user.id)
+
     if not is_owner and not is_trusted:
-        await _notify_unknown(message)
+        await _try_secret_word(message)
         return
+
     text = message.text or message.caption or ""
     if not text:
         return
@@ -176,23 +192,22 @@ async def message_handler(message: Message) -> None:
             source = origin.chat.title
     saved = await save_memo(text, source=source, message_id=message.message_id, chat_id=message.chat.id)
     if is_trusted:
-        await message.answer("Task sent.")
+        await message.answer("Task sent.", reply_markup=undo_keyboard(saved.id))
     else:
         await message.answer("Got it.", reply_markup=memo_keyboard(saved.id))
 
 
-async def _notify_unknown(message: Message) -> None:
+async def _try_secret_word(message: Message) -> None:
+    secret = await get_setting("secret_word")
+    if not secret:
+        return
+    text = (message.text or "").strip()
+    if text.lower() != secret.lower():
+        return
     user = message.from_user
     name = f"{user.first_name} {user.last_name or ''}".strip()
-    username = f" (@{user.username})" if user.username else ""
-    try:
-        await message.bot.send_message(
-            ALLOWED_USER_ID,
-            f"Unknown user wants to send tasks:\n{name}{username}\nID: {user.id}\n\n"
-            f"Run /adduser {user.id} {name} to allow them.",
-        )
-    except Exception:
-        pass
+    await add_trusted_user(user.id, name)
+    await message.answer("Access granted. You can now send tasks.")
 
 
 async def _edit_message(callback: CallbackQuery, text: str) -> None:
@@ -231,6 +246,16 @@ async def callback_letgo(callback: CallbackQuery) -> None:
     memo_id = int(callback.data.split(":")[1])
     await set_status(memo_id, "dropped")
     await _edit_message(callback, "Gone.")
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("undo:"))
+async def callback_undo(callback: CallbackQuery) -> None:
+    if not await is_trusted_user(callback.from_user.id):
+        return
+    memo_id = int(callback.data.split(":")[1])
+    await set_status(memo_id, "dropped")
+    await callback.message.edit_text("Cancelled.")
     await callback.answer()
 
 
