@@ -2,7 +2,7 @@ import os
 import re
 from datetime import date, timedelta
 
-from aiogram import Bot, Dispatcher, F, Router
+from aiogram import Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -23,7 +23,6 @@ from db.models import (
     set_status,
     snooze_memo,
 )
-
 from scheduler.jobs import reschedule
 
 ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", "0"))
@@ -145,7 +144,7 @@ async def setsecret_handler(message: Message) -> None:
         return
     word = parts[1].strip()
     await set_setting("secret_word", word)
-    await message.answer(f"Secret word set. Share it with anyone you want to allow.")
+    await message.answer("Secret word set. Share it with anyone you want to allow.")
 
 
 @router.message(F.voice)

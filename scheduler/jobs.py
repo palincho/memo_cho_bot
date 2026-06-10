@@ -1,8 +1,8 @@
 import os
 
+from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from aiogram import Bot
 
 from bot.utils import send_memo
 from db.models import get_active_memos, get_setting

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Optional
 
 import aiosqlite
 
@@ -13,19 +12,19 @@ class Memo:
     text: str
     created_at: datetime
     status: str
-    snoozed_until: Optional[date]
-    sender_name: Optional[str]
-    message_id: Optional[int]
-    chat_id: Optional[int]
-    sender_id: Optional[int] = None
+    snoozed_until: date | None
+    sender_name: str | None
+    message_id: int | None
+    chat_id: int | None
+    sender_id: int | None = None
 
 
 async def save_memo(
     text: str,
-    sender_name: Optional[str] = None,
-    message_id: Optional[int] = None,
-    chat_id: Optional[int] = None,
-    sender_id: Optional[int] = None,
+    sender_name: str | None = None,
+    message_id: int | None = None,
+    chat_id: int | None = None,
+    sender_id: int | None = None,
 ) -> Memo:
     async with get_db() as db:
         cursor = await db.execute(
@@ -56,7 +55,7 @@ async def get_active_memos_for_user(sender_id: int) -> list[Memo]:
     return [_row_to_memo(r) for r in rows]
 
 
-async def get_memo_owner(memo_id: int) -> Optional[int]:
+async def get_memo_owner(memo_id: int) -> int | None:
     async with get_db() as db:
         cursor = await db.execute("SELECT sender_id FROM memos WHERE id = ?", (memo_id,))
         row = await cursor.fetchone()
@@ -97,7 +96,7 @@ async def snooze_memo(memo_id: int, until: date) -> None:
         await db.commit()
 
 
-async def get_setting(key: str) -> Optional[str]:
+async def get_setting(key: str) -> str | None:
     async with get_db() as db:
         cursor = await db.execute(
             "SELECT value FROM settings WHERE key = ?", (key,)

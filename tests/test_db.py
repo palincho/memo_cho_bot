@@ -5,7 +5,6 @@ import pytest
 
 os.environ.setdefault("DB_PATH", ":memory:")
 
-import db.database as database
 from db.database import init_db
 from db.models import (
     add_trusted_user,
