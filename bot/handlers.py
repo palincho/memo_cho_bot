@@ -13,6 +13,7 @@ from db.models import (
     add_trusted_user,
     get_active_memos,
     get_active_memos_for_user,
+    get_memo,
     get_memo_owner,
     get_setting,
     is_trusted_user,
@@ -213,6 +214,17 @@ async def _try_secret_word(message: Message) -> None:
     await message.answer("Access granted. You can now send tasks.")
 
 
+async def _notify_sender_on_action(bot, memo_id: int, actor_id: int, status_msg: str) -> None:
+    memo = await get_memo(memo_id)
+    if not (memo and memo.sender_id and memo.sender_id != actor_id and await is_trusted_user(memo.sender_id)):
+        return
+    if memo.text.startswith("voice:"):
+        await bot.send_message(memo.sender_id, f"{status_msg} (voice task).")
+    else:
+        preview = memo.text[:100] + ("…" if len(memo.text) > 100 else "")
+        await bot.send_message(memo.sender_id, f"{status_msg}: {preview}")
+
+
 async def _edit_message(callback: CallbackQuery, text: str) -> None:
     # voice/media messages have no .text — must use edit_caption instead
     if callback.message.text is None:
@@ -240,6 +252,7 @@ async def callback_done(callback: CallbackQuery, callback_data: MemoAction) -> N
     await set_status(callback_data.memo_id, "done")
     await _edit_message(callback, "Done.")
     await callback.answer()
+    await _notify_sender_on_action(callback.bot, callback_data.memo_id, callback.from_user.id, "✓ Done")
 
 
 @router.callback_query(MemoAction.filter(F.action == "snooze"))
@@ -259,6 +272,7 @@ async def callback_letgo(callback: CallbackQuery, callback_data: MemoAction) -> 
     await set_status(callback_data.memo_id, "dropped")
     await _edit_message(callback, "Gone.")
     await callback.answer()
+    await _notify_sender_on_action(callback.bot, callback_data.memo_id, callback.from_user.id, "🗑 Gone")
 
 
 @router.callback_query(MemoAction.filter(F.action == "undo"))
