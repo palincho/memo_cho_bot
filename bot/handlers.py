@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from bot.keyboards import MemoAction, memo_keyboard, undo_keyboard
 from bot.utils import send_memo
@@ -78,7 +79,7 @@ async def review_handler(message: Message) -> None:
 
 
 @router.message(Command("time"))
-async def time_handler(message: Message, _scheduler=None) -> None:
+async def time_handler(message: Message, scheduler: AsyncIOScheduler) -> None:
     if not _is_allowed(message.from_user.id):
         return
     args = message.text.split(maxsplit=1)
@@ -91,9 +92,7 @@ async def time_handler(message: Message, _scheduler=None) -> None:
         await message.answer("Invalid time. Use HH:MM (24h format).")
         return
     await set_setting("reminder_time", time_str)
-    scheduler = message.bot.get("scheduler")
-    if scheduler:
-        reschedule(scheduler, hour, minute)
+    reschedule(scheduler, hour, minute)
     await message.answer(f"Reminder set for {time_str}.")
 
 
