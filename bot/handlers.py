@@ -181,14 +181,7 @@ async def message_handler(message: Message) -> None:
     if is_trusted:
         sender_name = message.from_user.first_name
     elif message.forward_origin:
-        origin = message.forward_origin
-        if hasattr(origin, "sender_user") and origin.sender_user:
-            u = origin.sender_user
-            sender_name = f"{u.first_name} {u.last_name or ''}".strip()
-        elif hasattr(origin, "sender_user_name") and origin.sender_user_name:
-            sender_name = origin.sender_user_name
-        elif hasattr(origin, "chat") and origin.chat:
-            sender_name = origin.chat.title
+        sender_name = _get_forward_sender(message.forward_origin)
     saved = await save_memo(text, sender_name=sender_name, message_id=message.message_id, chat_id=message.chat.id, sender_id=message.from_user.id)
     if is_trusted:
         await message.answer("Task sent.", reply_markup=undo_keyboard(saved.id))
@@ -196,6 +189,17 @@ async def message_handler(message: Message) -> None:
         await message.bot.send_message(ALLOWED_USER_ID, f"New task from {sender_name}:\n{preview}")
     else:
         await message.answer("Got it.", reply_markup=memo_keyboard(saved.id))
+
+
+def _get_forward_sender(origin) -> str | None:
+    if hasattr(origin, "sender_user") and origin.sender_user:
+        u = origin.sender_user
+        return f"{u.first_name} {u.last_name or ''}".strip()
+    if hasattr(origin, "sender_user_name") and origin.sender_user_name:
+        return origin.sender_user_name
+    if hasattr(origin, "chat") and origin.chat:
+        return origin.chat.title
+    return None
 
 
 async def _try_secret_word(message: Message) -> None:
