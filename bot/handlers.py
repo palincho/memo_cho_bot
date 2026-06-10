@@ -7,6 +7,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from bot.keyboards import memo_keyboard, undo_keyboard
+from bot.utils import send_memo
 from db.models import (
     add_trusted_user,
     get_active_memos,
@@ -73,20 +74,7 @@ async def review_handler(message: Message) -> None:
     count = len(memos)
     await message.answer(f"{count} task{'s' if count != 1 else ''}:")
     for memo in memos:
-        if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
-            caption = f"(from {memo.sender_name})" if memo.sender_name and is_owner else None
-            await message.bot.copy_message(
-                chat_id=message.chat.id,
-                from_chat_id=memo.chat_id,
-                message_id=memo.message_id,
-                caption=caption,
-                reply_markup=memo_keyboard(memo.id),
-            )
-        else:
-            header = f"[{memo.id}]"
-            if memo.sender_name and is_owner:
-                header += f" (from {memo.sender_name})"
-            await message.answer(f"{header}\n{memo.text}", reply_markup=memo_keyboard(memo.id))
+        await send_memo(message.bot, message.chat.id, memo, show_sender=is_owner)
 
 
 @router.message(Command("time"))
