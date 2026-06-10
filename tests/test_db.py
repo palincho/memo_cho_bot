@@ -10,6 +10,7 @@ from db.models import (
     add_trusted_user,
     get_active_memos,
     get_active_memos_for_user,
+    get_memo,
     get_memo_owner,
     get_setting,
     is_trusted_user,
@@ -116,6 +117,23 @@ async def test_get_memo_owner_returns_sender_id():
 async def test_get_memo_owner_missing_returns_none():
     await init_db()
     assert await get_memo_owner(99999) is None
+
+
+@pytest.mark.asyncio
+async def test_get_memo_returns_memo():
+    await init_db()
+    saved = await save_memo("Fetch me", sender_id=42)
+    fetched = await get_memo(saved.id)
+    assert fetched is not None
+    assert fetched.id == saved.id
+    assert fetched.text == "Fetch me"
+    assert fetched.sender_id == 42
+
+
+@pytest.mark.asyncio
+async def test_get_memo_missing_returns_none():
+    await init_db()
+    assert await get_memo(99999) is None
 
 
 # ---------------------------------------------------------------------------

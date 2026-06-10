@@ -38,6 +38,13 @@ async def save_memo(
     return _row_to_memo(row)
 
 
+async def get_memo(memo_id: int) -> Memo | None:
+    async with get_db() as db:
+        cursor = await db.execute("SELECT * FROM memos WHERE id = ?", (memo_id,))
+        row = await cursor.fetchone()
+    return _row_to_memo(row) if row else None
+
+
 async def get_active_memos_for_user(sender_id: int) -> list[Memo]:
     today = date.today().isoformat()
     async with get_db() as db:
