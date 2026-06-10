@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards import memo_keyboard, undo_keyboard
+from bot.keyboards import MemoAction, memo_keyboard, undo_keyboard
 from bot.utils import send_memo
 from db.models import (
     add_trusted_user,
@@ -231,43 +231,39 @@ async def _check_memo_access(callback: CallbackQuery, memo_id: int) -> bool:
     return False
 
 
-@router.callback_query(F.data.startswith("done:"))
-async def callback_done(callback: CallbackQuery) -> None:
-    memo_id = int(callback.data.split(":")[1])
-    if not await _check_memo_access(callback, memo_id):
+@router.callback_query(MemoAction.filter(F.action == "done"))
+async def callback_done(callback: CallbackQuery, callback_data: MemoAction) -> None:
+    if not await _check_memo_access(callback, callback_data.memo_id):
         return
-    await set_status(memo_id, "done")
+    await set_status(callback_data.memo_id, "done")
     await _edit_message(callback, "Done.")
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("snooze:"))
-async def callback_snooze(callback: CallbackQuery) -> None:
-    memo_id = int(callback.data.split(":")[1])
-    if not await _check_memo_access(callback, memo_id):
+@router.callback_query(MemoAction.filter(F.action == "snooze"))
+async def callback_snooze(callback: CallbackQuery, callback_data: MemoAction) -> None:
+    if not await _check_memo_access(callback, callback_data.memo_id):
         return
     tomorrow = date.today() + timedelta(days=1)
-    await snooze_memo(memo_id, tomorrow)
+    await snooze_memo(callback_data.memo_id, tomorrow)
     await _edit_message(callback, f"Snoozed until tomorrow ({tomorrow.strftime('%-d %b')}).")
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("letgo:"))
-async def callback_letgo(callback: CallbackQuery) -> None:
-    memo_id = int(callback.data.split(":")[1])
-    if not await _check_memo_access(callback, memo_id):
+@router.callback_query(MemoAction.filter(F.action == "letgo"))
+async def callback_letgo(callback: CallbackQuery, callback_data: MemoAction) -> None:
+    if not await _check_memo_access(callback, callback_data.memo_id):
         return
-    await set_status(memo_id, "dropped")
+    await set_status(callback_data.memo_id, "dropped")
     await _edit_message(callback, "Gone.")
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("undo:"))
-async def callback_undo(callback: CallbackQuery) -> None:
+@router.callback_query(MemoAction.filter(F.action == "undo"))
+async def callback_undo(callback: CallbackQuery, callback_data: MemoAction) -> None:
     if not await is_trusted_user(callback.from_user.id):
         return
-    memo_id = int(callback.data.split(":")[1])
-    await set_status(memo_id, "dropped")
+    await set_status(callback_data.memo_id, "dropped")
     await callback.message.edit_text("Cancelled.")
     await callback.answer()
 
