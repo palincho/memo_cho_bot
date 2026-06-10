@@ -1,13 +1,19 @@
+from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+
+class MemoAction(CallbackData, prefix="memo"):
+    action: str  # "done" | "snooze" | "letgo" | "undo"
+    memo_id: int
 
 
 def memo_keyboard(memo_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✓ Done", callback_data=f"done:{memo_id}"),
-                InlineKeyboardButton(text="💤 Snooze", callback_data=f"snooze:{memo_id}"),
-                InlineKeyboardButton(text="🗑 Let go", callback_data=f"letgo:{memo_id}"),
+                InlineKeyboardButton(text="✓ Done", callback_data=MemoAction(action="done", memo_id=memo_id).pack()),
+                InlineKeyboardButton(text="💤 Snooze", callback_data=MemoAction(action="snooze", memo_id=memo_id).pack()),
+                InlineKeyboardButton(text="🗑 Let go", callback_data=MemoAction(action="letgo", memo_id=memo_id).pack()),
             ]
         ]
     )
@@ -16,6 +22,6 @@ def memo_keyboard(memo_id: int) -> InlineKeyboardMarkup:
 def undo_keyboard(memo_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🗑 Undo", callback_data=f"undo:{memo_id}")]
+            [InlineKeyboardButton(text="🗑 Undo", callback_data=MemoAction(action="undo", memo_id=memo_id).pack())]
         ]
     )

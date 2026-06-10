@@ -1,10 +1,10 @@
 import os
 
+from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from aiogram import Bot
 
-from bot.keyboards import memo_keyboard
+from bot.utils import send_memo
 from db.models import get_active_memos, get_setting
 
 JOB_ID = "daily_review"
@@ -16,20 +16,7 @@ async def send_daily_review(bot: Bot, user_id: int) -> None:
         await bot.send_message(user_id, "All clear. Nothing pending.")
         return
     for memo in memos:
-        if memo.text.startswith("voice:") and memo.chat_id and memo.message_id:
-            caption = f"(from {memo.sender_name})" if memo.sender_name else None
-            await bot.copy_message(
-                chat_id=user_id,
-                from_chat_id=memo.chat_id,
-                message_id=memo.message_id,
-                caption=caption,
-                reply_markup=memo_keyboard(memo.id),
-            )
-        else:
-            header = f"[{memo.id}]"
-            if memo.sender_name:
-                header += f" (from {memo.sender_name})"
-            await bot.send_message(user_id, f"{header}\n{memo.text}", reply_markup=memo_keyboard(memo.id))
+        await send_memo(bot, user_id, memo)
 
 
 async def setup_scheduler(bot: Bot, user_id: int) -> AsyncIOScheduler:
